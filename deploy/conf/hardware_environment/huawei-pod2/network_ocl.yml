@@ -1,3 +1,12 @@
+##############################################################################
+# Copyright (c) 2016 HUAWEI TECHNOLOGIES CO.,LTD and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+
 ---
 nic_mappings: []
 bond_mappings: []
@@ -57,7 +66,7 @@ ip_settings:
   - name: external
     ip_ranges:
       - - "192.168.11.10"
-        - "192.168.11.15"
+        - "192.168.11.50"
     cidr: "192.168.11.0/24"
     gw: "192.168.11.1"
     role:
@@ -70,7 +79,7 @@ internal_vip:
   interface: mgmt
 
 public_vip:
-  ip: 192.168.11.18
+  ip: 192.168.11.51
   netmask: "24"
   interface: external
 
@@ -79,7 +88,7 @@ public_net_info:
   enable: "True"
   network: ext-net
   type: flat
-  segment_id: 1000
+  segment_id: 10
   subnet: ext-subnet
   provider_network: physnet
   router: router-ext

@@ -2,7 +2,7 @@
 .. http://creativecommons.org/licenses/by/4.0
 .. (c) Weidong Shao (HUAWEI) and Justin Chi (HUAWEI)
 
-Release Note for the Danube release of OPNFV when using Compass4nfv as a deployment tool.
+Release Note for the Fraser release of OPNFV when using Compass4nfv as a deployment tool.
 
 Abstract
 ========
@@ -25,16 +25,16 @@ Release Data
 | **Project**                          | Compass4nfv                          |
 |                                      |                                      |
 +--------------------------------------+--------------------------------------+
-| **Repo/tag**                         | Compass4nfv/Danube.1.0               |
+| **Repo/tag**                         | Compass4nfv/Fraser.1.0               |
 |                                      |                                      |
 +--------------------------------------+--------------------------------------+
-| **Release designation**              | Danube.1.0                           |
+| **Release designation**              | Fraser.1.0                           |
 |                                      |                                      |
 +--------------------------------------+--------------------------------------+
-| **Release date**                     | March 31 2017                        |
+| **Release date**                     | March 2018                           |
 |                                      |                                      |
 +--------------------------------------+--------------------------------------+
-| **Purpose of the delivery**          | OPNFV Danube release                 |
+| **Purpose of the delivery**          | OPNFV Fraser release                 |
 |                                      |                                      |
 +--------------------------------------+--------------------------------------+
 
@@ -44,16 +44,16 @@ Deliverables
 Software deliverables
 ~~~~~~~~~~~~~~~~~~~~~
 
- - Compass4nfv/Danube.1.0 ISO, please get it from `OPNFV software download page <https://www.opnfv.org/software/>`_
+ - Compass4nfv/Fraser.1.0 tarball, please get it from `OPNFV software download page <https://www.opnfv.org/software/>`_
 
 .. _document-label:
 
 Documentation deliverables
 ~~~~~~~~~~~~~~~~~~~~~~~~~~
 
- - OPNFV(Danube) Compass4nfv installation instructions
+ - OPNFV(Fraser) Compass4nfv installation instructions
 
- - OPNFV(Danube) Compass4nfv Release Notes
+ - OPNFV(Fraser) Compass4nfv Release Notes
 
 Version change
 --------------
@@ -62,21 +62,17 @@ Version change
 Module version change
 ~~~~~~~~~~~~~~~~~~~~~
 
-This is the Danube release of compass4nfv as a deployment toolchain in OPNFV, the following
+This is the Fraser release of compass4nfv as a deployment toolchain in OPNFV, the following
 upstream components supported with this release.
 
- - Ubuntu 16.04/Centos 7.3
+ - Ubuntu 16.04.3/Centos 7.4
 
- - Openstack (Newton release)
+ - Openstack (Pike release)
 
- - Opendaylight (Boron SR2 release)
+ - Kubernates (1.9)
 
- - ONOS (J-bird release/later release)
+ - Opendaylight (Nitrogen SR1 release)
 
-Document version change
-~~~~~~~~~~~~~~~~~~~~~~~
-
-Adjusted the document structure, and you can see document at `OPNFV(Danube) Compass4nfv installation instructions <http://artifacts.opnfv.org/compass4nfv/docs/configguide/index.html>`_.
 
 Reason for new version
 ----------------------
@@ -88,16 +84,24 @@ Feature additions
 | **JIRA REFERENCE**                   | **SLOGAN**                              |
 |                                      |                                         |
 +--------------------------------------+-----------------------------------------+
-| COMPASS-504                          | Open-O deployment with Compass          |
+| COMPASS-549                          | Real Time KVM                           |
 |                                      |                                         |
 +--------------------------------------+-----------------------------------------+
-| COMPASS-362                          | OpenDaylight Boron Support              |
+|                                      | OpenDaylight Nitrogen Support           |
 |                                      |                                         |
 +--------------------------------------+-----------------------------------------+
-| COMPASS-491                          | Support OpenStack Newton                |
+| COMPASS-542                          | Support OpenStack Ocata                 |
 |                                      |                                         |
 +--------------------------------------+-----------------------------------------+
-
+|                                      | Support ODL SFC                         |
+|                                      |                                         |
++--------------------------------------+-----------------------------------------+
+| COMPASS-550                          | Support OVS-DPDK                        |
+|                                      |                                         |
++--------------------------------------+-----------------------------------------+
+| COMPASS-495                          | Yardstick Integration into Compass4nfv  |
+|                                      |                                         |
++--------------------------------------+-----------------------------------------+
 
 
 Bug corrections
@@ -105,13 +109,13 @@ Bug corrections
 
 **JIRA TICKETS:**
 
-+--------------------------------------+--------------------------------------+
-| **JIRA REFERENCE**                   | **SLOGAN**                           |
-|                                      |                                      |
-+--------------------------------------+--------------------------------------+
-|                                      |                                      |
-|                                      |                                      |
-+--------------------------------------+--------------------------------------+
++--------------------------------------+----------------------------------------+
+| **JIRA REFERENCE**                   | **SLOGAN**                             |
+|                                      |                                        |
++--------------------------------------+----------------------------------------+
+|                                      | With no ceph, the cluster will heal    |
+|                                      | itself after a power failure or reboot |
++--------------------------------------+----------------------------------------+
 
 
 Known Limitations, Issues and Workarounds
@@ -128,25 +132,18 @@ System Limitations
 
 **Min Jumphost requirements:** At least 16GB of RAM, 16 core CPU
 
+Scenario Limitations
+--------------------
+
+
 Known issues
 ------------
-
-+----------------------+-------------------------------+-----------------------+
-|   **Scenario**       | **Issue**                     |  **Workarounds**      |
-+----------------------+-------------------------------+-----------------------+
-| os-odl-l3-no-feature | Occasionally failed to assign | Rebuild the instance  |
-|                      | floating IP to an instance    | and reassign floating |
-|                      |                               | IP                    |
-+----------------------+-------------------------------+-----------------------+
-| os-odl-l2-no-feature | Occasionally failed to login  | Failed in testcase,   |
-|                      | instance via ssh              | normal in usage       |
-+----------------------+-------------------------------+-----------------------+
 
 
 Test Result
 ===========
-The Danube release with the Compass4nfv deployment toolchain has undergone QA test
+The Fraser release with the Compass4nfv deployment toolchain has undergone QA test
 runs with the following results:
 
-Functest: http://testresults.opnfv.org/reporting/functest/release/danube/index-status-compass.html
+Functest: http://testresults.opnfv.org/reporting/fraser/functest/status-compass.html
 

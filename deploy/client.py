@@ -25,6 +25,7 @@ import requests
 import json
 import itertools
 import threading
+import multiprocessing
 from collections import defaultdict
 from restful import Client
 import log as logging
@@ -192,6 +193,12 @@ opts = [
     cfg.IntOpt('action_timeout',
                help='action timeout in seconds',
                default=60),
+    cfg.IntOpt('install_os_timeout',
+               help='OS install timeout in minutes',
+               default=60),
+    cfg.IntOpt('ansible_print_wait',
+               help='wait ansible-playbok ready',
+               default=5),
     cfg.IntOpt('deployment_timeout',
                help='deployment timeout in minutes',
                default=60),
@@ -243,12 +250,21 @@ opts = [
     cfg.StrOpt('odl_l3_agent',
                help='odl l3 agent enable flag',
                default='Disable'),
-    cfg.StrOpt('moon',
-               help='moon enable flag',
-               default='Disable'),
+    cfg.StrOpt('moon_cfg',
+               help='moon config',
+               default='master:flag=Disable,slave:flag=Disable,slave:name=slave1,slave:master_ip=master_ip'),  # noqa
     cfg.StrOpt('onos_sfc',
                help='onos_sfc enable flag',
                default='Disable'),
+    cfg.StrOpt('plugins',
+               help='plugin dict',
+               default='{}'),
+    cfg.StrOpt('offline_deployment',
+               help='offline_deployment',
+               default='Disable'),
+    cfg.StrOpt('offline_repo_port',
+               help='offline_repo_port',
+               default='5151'),
 ]
 CONF.register_cli_opts(opts)
 
@@ -383,17 +399,20 @@ class CompassClient(object):
             except:
                 raise RuntimeError('subnet %s format is invalid' % subnet)
 
-            if CONF.expansion == "false":
+            subnet_exist = False
+            for subnet_in_db in subnets_in_db:
+                if subnet == subnet_in_db['subnet']:
+                    subnet_mapping[subnet] = subnet_in_db['id']
+                    subnet_exist = True
+                    break
+
+            if not subnet_exist:
                 status, resp = self.client.add_subnet(subnet)
                 LOG.info('add subnet %s status %s response %s',
                          subnet, status, resp)
                 if not self.is_ok(status):
                     raise RuntimeError('failed to add subnet %s' % subnet)
                 subnet_mapping[resp['subnet']] = resp['id']
-            else:
-                for subnet_in_db in subnets_in_db:
-                    if subnet == subnet_in_db['subnet']:
-                        subnet_mapping[subnet] = subnet_in_db['id']
 
         self.subnet_mapping = subnet_mapping
 
@@ -459,8 +478,8 @@ class CompassClient(object):
             if host['hostname'] in hostnames:
                 self.host_mapping[host['hostname']] = host['id']
 
-        if CONF.expansion == "false":
-            assert(len(self.host_mapping) == len(machines))
+        # if CONF.expansion == "false":
+        #     assert(len(self.host_mapping) == len(machines))
 
     def set_cluster_os_config(self, cluster_id):
         """set cluster os config."""
@@ -718,6 +737,36 @@ class CompassClient(object):
                 'password': password
             }
 
+        ip_pattern = re.compile('\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}')
+        compass_ip = re.findall(ip_pattern, CONF.compass_server)[0]
+        package_config["compass_ip"] = compass_ip
+        package_config["offline_repo_port"] = CONF.offline_repo_port
+        package_config["offline_deployment"] = CONF.offline_deployment
+
+        moon_cfgs = [
+            cfg
+            for cfg in CONF.moon_cfg.split(',')
+            if cfg
+        ]
+        LOG.info(
+            'moon configure: %s', moon_cfgs
+        )
+        moon_cfg = {}
+        for cfg in moon_cfgs:
+            if ':' not in cfg:
+                raise Exception(
+                    'there is no : in cfg %s' % cfg  # noqa
+                )
+            role, conf_pair = cfg.split(':', 1)
+            if '=' not in conf_pair:
+                raise Exception(
+                    'there is no = in %s configure pair' % conf_pair
+                )
+            key, value = conf_pair.split('=', 1)
+            moon_cfg[role] = {} if role not in moon_cfg else moon_cfg[role]
+            moon_cfg[role][key] = value
+        package_config["moon_cfg"] = moon_cfg
+
         package_config["security"] = {"service_credentials": service_credential_cfg,  # noqa
                                       "console_credentials": console_credential_cfg}  # noqa
 
@@ -730,11 +779,11 @@ class CompassClient(object):
         package_config['network_mapping'] = network_mapping
 
         assert(os.path.exists(CONF.network_cfg))
-        network_cfg = yaml.load(open(CONF.network_cfg))
+        network_cfg = yaml.safe_load(open(CONF.network_cfg))
         package_config["network_cfg"] = network_cfg
 
         assert(os.path.exists(CONF.neutron_cfg))
-        neutron_cfg = yaml.load(open(CONF.neutron_cfg))
+        neutron_cfg = yaml.safe_load(open(CONF.neutron_cfg))
         package_config["neutron_config"] = neutron_cfg
 
         """
@@ -751,12 +800,13 @@ class CompassClient(object):
         package_config['enable_secgroup'] = (CONF.enable_secgroup == "true")
         package_config['enable_fwaas'] = (CONF.enable_fwaas == "true")
         package_config['enable_vpnaas'] = (CONF.enable_vpnaas == "true")
-        package_config[
-            'odl_l3_agent'] = "Enable" if CONF.odl_l3_agent == "Enable" else "Disable"   # noqa
-        package_config[
-            'moon'] = "Enable" if CONF.moon == "Enable" else "Disable"
-        package_config[
-            'onos_sfc'] = "Enable" if CONF.onos_sfc == "Enable" else "Disable"
+        package_config['odl_l3_agent'] = "Enable" if CONF.odl_l3_agent == "Enable" else "Disable"   # noqa
+        package_config['onos_sfc'] = "Enable" if CONF.onos_sfc == "Enable" else "Disable"   # noqa
+        package_config['plugins'] = []
+        if CONF.plugins:
+            for item in CONF.plugins.split(','):
+                key, value = item.split(':')
+                package_config['plugins'].append({key: value})
 
         status, resp = self.client.update_cluster_config(
             cluster_id, package_config=package_config)
@@ -883,12 +933,63 @@ class CompassClient(object):
 
         return status, cluster_state
 
-    def get_installing_progress(self, cluster_id):
+    def get_ansible_print(self):
+        def print_log(log):
+            try:
+                with open(log, 'r') as file:
+                    while True:
+                        line = file.readline()
+                        if not line:
+                            time.sleep(0.1)
+                            continue
+                        line = line.replace('\n', '')
+                        print line
+                        sys.stdout.flush()
+            except:
+                raise RuntimeError("open ansible.log error")
+
+        current_time = time.time()
+        install_timeout = current_time + 60 * CONF.install_os_timeout
+        while current_time < install_timeout:
+            ready = True
+            for id in self.host_mapping.values():
+                status, response = self.client.get_host_state(id)
+                if response['state'] != 'SUCCESSFUL':
+                    ready = False
+                    break
+
+            current_time = time.time()
+            if not ready:
+                time.sleep(8)
+            else:
+                break
+
+        if current_time >= install_timeout:
+            raise RuntimeError("OS installation timeout")
+        else:
+            LOG.info("OS installation complete")
+
+        # time.sleep(CONF.ansible_start_wait)
+        compass_dir = os.getenv('COMPASS_DIR')
+        ansible_log = "%s/work/deploy/docker/ansible/run/%s-%s/ansible.log" \
+                      % (compass_dir, CONF.adapter_name, CONF.cluster_name)
+        os.system("sudo touch %s" % ansible_log)
+        os.system("sudo chmod +x -R %s/work/deploy/docker/ansible/run/"
+                  % compass_dir)
+        ansible_print = multiprocessing.Process(target=print_log,
+                                                args=(ansible_log,))
+        ansible_print.start()
+        return ansible_print
+
+    def get_installing_progress(self, cluster_id, ansible_print):
         def _get_installing_progress():
             """get intalling progress."""
             deployment_timeout = time.time() + 60 * float(CONF.deployment_timeout)  # noqa
             current_time = time.time
             while current_time() < deployment_timeout:
+                if not ansible_print.is_alive():
+                    raise RuntimeError("can not get ansible log")
+
                 status, cluster_state = self.get_cluster_state(cluster_id)
                 if not self.is_ok(status):
                     raise RuntimeError("can not get cluster state")
@@ -905,23 +1006,20 @@ class CompassClient(object):
                         (cluster_id, status, cluster_state)
                     )
 
-                time.sleep(5)
+                time.sleep(10)
 
             if current_time() >= deployment_timeout:
                 LOG.info("current_time=%s, deployment_timeout=%s"
                          % (current_time(), deployment_timeout))
                 LOG.info("cobbler status:")
-                os.system("ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
-                                 -i %s root@192.168.200.2 \
-                                 'cobbler status'" % (CONF.rsa_file))
+                os.system("sudo docker exec compass-cobbler bash -c \
+                          'cobbler status'")
                 raise RuntimeError("installation timeout")
 
         try:
             _get_installing_progress()
         finally:
-            # do this twice, make sure process be killed
-            kill_print_proc()
-            kill_print_proc()
+            ansible_print.terminate()
 
     def check_dashboard_links(self, cluster_id):
         dashboard_url = CONF.dashboard_url
@@ -946,16 +1044,11 @@ class CompassClient(object):
 
 
 def print_ansible_log():
-    os.system("docker exec compass-tasks bash -c \
-              'while ! tail -f \
-              /var/ansible/run/%s-%s/ansible.log 2>/dev/null; do :; \
-              sleep 1; done'" %
-              (CONF.adapter_name, CONF.cluster_name))
+    pass
 
 
 def kill_print_proc():
-    os.system("docker exec compass-tasks bash -c \
-              'ps aux | grep tail | awk \'{print $2}\' | xargs kill -9'")   # noqa
+    pass
 
 
 def deploy():
@@ -980,8 +1073,8 @@ def deploy():
         client.deploy_clusters(cluster_id)
 
         LOG.info("compass OS installtion is begin")
-        threading.Thread(target=print_ansible_log).start()
-        client.get_installing_progress(cluster_id)
+        ansible_print = client.get_ansible_print()
+        client.get_installing_progress(cluster_id, ansible_print)
         client.check_dashboard_links(cluster_id)
 
     else:

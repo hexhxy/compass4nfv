@@ -1,3 +1,12 @@
+##############################################################################
+# Copyright (c) 2016 HUAWEI TECHNOLOGIES CO.,LTD and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+
 ---
 TYPE: baremetal
 FLAVOR: cluster
@@ -12,7 +21,7 @@ hosts:
     interfaces:
       - eth1: 'E8:4D:D0:BA:63:4A'
     ipmiIp: 172.16.131.17
-    ipmiPass: Huawei@123
+    ipmiPass: Opnfv@pod4
     roles:
       - controller
       - ha
@@ -24,7 +33,7 @@ hosts:
     interfaces:
       - eth1: 'E8:4D:D0:BB:AA:C6'
     ipmiIp: 172.16.131.18
-    ipmiPass: Huawei@123
+    ipmiPass: Opnfv@pod4
     roles:
       - controller
       - ha
@@ -35,7 +44,7 @@ hosts:
     interfaces:
       - eth1: 'E8:4D:D0:B9:1F:4A'
     ipmiIp: 172.16.131.19
-    ipmiPass: Huawei@123
+    ipmiPass: Opnfv@pod4
     roles:
       - controller
       - ha
@@ -46,7 +55,7 @@ hosts:
     interfaces:
       - eth1: 'E8:4D:D0:BB:AA:EA'
     ipmiIp: 172.16.131.20
-    ipmiPass: Huawei@123
+    ipmiPass: Opnfv@pod4
     roles:
       - compute
       - ceph-osd
@@ -56,7 +65,7 @@ hosts:
     interfaces:
       - eth1: 'E8:4D:D0:BB:AB:1E'
     ipmiIp: 172.16.131.21
-    ipmiPass: Huawei@123
+    ipmiPass: Opnfv@pod4
     roles:
       - compute
       - ceph-osd

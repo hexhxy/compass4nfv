@@ -28,7 +28,15 @@
 # export NETWORK=/home/compass4nfv/deploy/conf/vm_environment/huawei-virtual1/network.yml
 #export NETWORK=
 
-export OPENSTACK_VERSION=${OPENSTACK_VERSION:-newton}
+#export OPENSTACK_VERSION=${OPENSTACK_VERSION:-ocata}
+
+export OPENSTACK_VERSION=pike
+
+export COMPASS_ARCH=$(uname -m)
+
+if [[ "x"$KUBERNETES_VERSION != "x" ]]; then
+   unset OPENSTACK_VERSION
+fi
 
 COMPASS_DIR=`cd ${BASH_SOURCE[0]%/*}/;pwd`
 export COMPASS_DIR

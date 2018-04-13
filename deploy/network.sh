@@ -29,6 +29,7 @@ function setup_bridge_net()
 
     sudo virsh net-define $WORK_DIR/network/$net_name.xml
     sudo virsh net-start $net_name
+    sudo virsh net-autostart $net_name
 }
 
 function recover_bridge_net()
@@ -83,15 +84,14 @@ function setup_bridge_external()
 
     sudo virsh net-define $WORK_DIR/network/external.xml
     sudo virsh net-start external
+    sudo virsh net-autostart external
 
-    python $COMPASS_DIR/deploy/setup_vnic.py
 }
 
 function recover_bridge_external()
 {
     sudo virsh net-start external
 
-    python $COMPASS_DIR/deploy/setup_vnic.py
 }
 
 function setup_nat_net() {
@@ -115,6 +115,7 @@ function setup_nat_net() {
 
     sudo virsh net-define $WORK_DIR/network/$net_name.xml
     sudo virsh net-start $net_name
+    sudo virsh net-autostart $net_name
 }
 
 function recover_nat_net() {
@@ -124,7 +125,13 @@ function recover_nat_net() {
 }
 
 function setup_virtual_net() {
-  setup_nat_net install $INSTALL_GW $INSTALL_MASK
+  setup_nat_net install $INSTALL_GW $INSTALL_NETMASK
+
+  if [[ "$NAT_EXTERNAL"  == "false" ]]; then
+     setup_bridge_external
+  else
+      setup_nat_net external_nat $EXT_NAT_GW $EXT_NAT_MASK $EXT_NAT_IP_START $EXT_NAT_IP_END
+  fi
 }
 
 function recover_virtual_net() {
@@ -135,7 +142,8 @@ function setup_baremetal_net() {
   if [[ -z $INSTALL_NIC ]]; then
     exit 1
   fi
-  setup_bridge_net install $INSTALL_NIC
+  sudo ifconfig $INSTALL_NIC up
+  sudo ifconfig $INSTALL_NIC $INSTALL_GW
 }
 
 function recover_baremetal_net() {
@@ -151,7 +159,7 @@ function setup_network_boot_scripts() {
     sudo cat << EOF >> /usr/sbin/network_setup
 
 sleep 2
-save_network_info
+#save_network_info
 clear_forward_rejct_rules
 EOF
     sudo chmod 755 /usr/sbin/network_setup
@@ -163,13 +171,12 @@ EOF
 }
 
 function create_nets() {
-    setup_nat_net mgmt $MGMT_GW $MGMT_MASK $MGMT_IP_START $MGMT_IP_END
 
     # create install network
     setup_"$TYPE"_net
 
     # create external network
-    setup_bridge_external
+    # setup_bridge_external
     clear_forward_rejct_rules
 
     setup_network_boot_scripts

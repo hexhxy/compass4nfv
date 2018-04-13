@@ -10,6 +10,26 @@
 compass_vm_dir=$WORK_DIR/vm/compass
 rsa_file=$compass_vm_dir/boot.rsa
 ssh_args="-o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no -i $rsa_file"
+
+function check_container_alive() {
+    docker exec -it compass-deck bash -c "exit" 1>/dev/null 2>&1
+    local deck_state=$?
+    docker exec -it compass-tasks bash -c "exit" 1>/dev/null 2>&1
+    local tasks_state=$?
+    docker exec -it compass-cobbler bash -c "exit" 1>/dev/null 2>&1
+    local cobbler_state=$?
+    docker exec -it compass-db bash -c "exit" 1>/dev/null 2>&1
+    local db_state=$?
+    docker exec -it compass-mq bash -c "exit" 1>/dev/null 2>&1
+    local mq_state=$?
+
+    if [ $((deck_state||tasks_state||cobbler_state||db_state||mq_state)) == 0 ]; then
+        echo "true"
+    else
+        echo "false"
+    fi
+}
+
 function tear_down_compass() {
     sudo virsh destroy compass > /dev/null 2>&1
     sudo virsh undefine compass > /dev/null 2>&1
@@ -27,9 +47,11 @@ function install_compass_core() {
 }
 
 function set_compass_machine() {
-    local config_file=$WORK_DIR/installer/compass-docker-compose/group_vars/all
+    local config_file=$WORK_DIR/installer/docker-compose/group_vars/all
     sed -i '/pxe_boot_macs/d' $config_file
     echo "pxe_boot_macs: [${machines}]" >> $config_file
+
+    ansible-playbook $WORK_DIR/installer/docker-compose/add_machine.yml
 }
 
 function install_compass() {
@@ -89,8 +111,11 @@ function inject_compass_conf() {
 }
 
 function refresh_compass_core () {
-    cmd="/opt/compass/bin/refresh.sh"
-    exec_cmd_on_compass $cmd
+    sudo docker exec compass-deck bash -c "/opt/compass/bin/manage_db.py createdb"
+    sudo docker exec compass-deck bash -c "/root/compass-deck/bin/clean_installers.py"
+    sudo docker exec compass-tasks bash -c \
+    "ps aux | grep -E '[a]nsible-playbook|[o]penstack-ansible' | awk '{print \$2}' | xargs kill -9"
+    sudo rm -rf $WORK_DIR/docker/ansible/run/*
 }
 
 function wait_ok() {
@@ -124,11 +149,24 @@ function wait_ok() {
 }
 
 function launch_compass() {
-    local group_vars=$WORK_DIR/installer/compass-docker-compose/group_vars/all
-    sed -i "s#^\(docker_compose_dir:\).*#\1 $WORK_DIR/docker#g" $group_vars
-    sed -i "s#^\(compass_dists_dir:\).*#\1 $WORK_DIR/installer/compass_dists#g" $group_vars
+    local group_vars=$WORK_DIR/installer/docker-compose/group_vars/all
+    sed -i "s#^\(compass_dir:\).*#\1 $COMPASS_DIR#g" $group_vars
+    sed -i "s#^\(compose_images:\).*#\1 $COMPOSE_IMAGES#g" $group_vars
 
-    ansible-playbook $WORK_DIR/installer/compass-docker-compose/bring_up_compass.yml
+    if [[ $OFFLINE_DEPLOY == "Enable" ]]; then
+        sed -i "s#.*\(compass_repo:\).*#\1 $COMPASS_REPO#g" $group_vars
+    else
+        sed -i "s/^\(compass_repo:.*\)/#\1/g" $group_vars
+    fi
+    sed -i "s#^\(host_ip:\).*#\1 $INSTALL_IP#g" $group_vars
+    sed -i "s#^\(install_subnet:\).*#\1 ${INSTALL_CIDR%/*}#g" $group_vars
+    sed -i "s#^\(install_prefix:\).*#\1 ${INSTALL_CIDR##*/}#g" $group_vars
+    sed -i "s#^\(install_netmask:\).*#\1 $INSTALL_NETMASK#g" $group_vars
+    sed -i "s#^\(install_ip_range:\).*#\1 $INSTALL_IP_RANGE#g" $group_vars
+
+    sed -i "s#^\(deck_port:\).*#\1 $COMPASS_DECK_PORT#g" $group_vars
+    sed -i "s#^\(repo_port:\).*#\1 $COMPASS_REPO_PORT#g" $group_vars
+    ansible-playbook $WORK_DIR/installer/docker-compose/bring_up_compass.yml
 }
 
 function recover_compass() {
@@ -203,8 +241,6 @@ function wait_controller_nodes_ok() {
 }
 
 function get_public_vip () {
-    docker exec compass-tasks bash -c \
-    "cd /var/ansible/run/$ADAPTER_NAME'-'$CLUSTER_NAME
-     cat group_vars/all | grep -A 3 public_vip: | sed -n '2p' |sed -e 's/  ip: //g'
-    "
+    cat $WORK_DIR/docker/ansible/run/$ADAPTER_NAME'-'$CLUSTER_NAME/group_vars/all \
+    | grep -A 3 public_vip: | sed -n '2p' |sed -e 's/  ip: //g'
 }

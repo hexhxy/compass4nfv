@@ -1,244 +1,122 @@
+##############################################################################
+# Copyright (c) 2017 HUAWEI TECHNOLOGIES CO.,LTD and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
 ---
 - hosts: all
   remote_user: root
-  pre_tasks:
-    - name: make sure ssh dir exist
-      file:
-        path: '{{ item.path }}'
-        owner: '{{ item.owner }}'
-        group: '{{ item.group }}'
-        state: directory
-        mode: 0755
-      with_items:
-        - path: /root/.ssh
-          owner: root
-          group: root
-
-    - name: write ssh config
-      copy:
-        content: "UserKnownHostsFile /dev/null\nStrictHostKeyChecking no"
-        dest: '{{ item.dest }}'
-        owner: '{{ item.owner }}'
-        group: '{{ item.group }}'
-        mode: 0600
-      with_items:
-        - dest: /root/.ssh/config
-          owner: root
-          group: root
-
-    - name: generate ssh keys
-      shell: if [ ! -f ~/.ssh/id_rsa.pub ]; \
-             then ssh-keygen -q -t rsa -f ~/.ssh/id_rsa -N ""; \
-             else echo "already gen ssh key!"; fi;
-
-    - name: fetch ssh keys
-      fetch:
-        src: /root/.ssh/id_rsa.pub
-        dest: /tmp/ssh-keys-{{ ansible_hostname }}
-        flat: "yes"
-
-    - authorized_key:
-        user: root
-        key: "{{ lookup('file', item) }}"
-      with_fileglob:
-        - /tmp/ssh-keys-*
-  max_fail_percentage: 0
   roles:
-    - common
-
-- hosts: all
-  remote_user: root
-  max_fail_percentage: 0
-  roles:
-    - setup-network
-
-- hosts: ha
-  remote_user: root
-  max_fail_percentage: 0
-  roles:
-    - ha
+    - pre-openstack
 
 - hosts: controller
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - memcached
-    - apache
-    - database
-    - mq
-    - keystone
-    - nova-controller
-    - neutron-controller
-    - cinder-controller
-    - glance
-    - neutron-common
-    - neutron-network
-    - ceilometer_controller
-    - dashboard
-    - heat
-    - aodh
-    - congress
+    - config-controller
 
-- hosts: all
+- hosts: compute
   remote_user: root
-  max_fail_percentage: 0
   roles:
+    - config-compute
     - storage
-
-- hosts: compute
-  remote_user: root
-  max_fail_percentage: 0
-  roles:
-    - nova-compute
-    - neutron-compute
-    - cinder-volume
-    - ceilometer_compute
+    - rt_kvm
+    - ins_dpdk
+    - ins_ovs
 
 - hosts: all
   remote_user: root
-  max_fail_percentage: 0
-  roles: []
-#    - moon
-
-- hosts: all
-  remote_user: root
-  max_fail_percentage: 0
   roles:
-    - secgroup
+    - sfc-pre
 
-- hosts: ceph_adm
+- hosts: localhost
   remote_user: root
-  max_fail_percentage: 0
-  roles: []
-#    - ceph-deploy
-
-- hosts: ceph
-  remote_user: root
-  max_fail_percentage: 0
   roles:
-    - ceph-purge
-    - ceph-config
+    - sfc-pre-2
+    - config-osa
+    - setup-host
+    - setup-infrastructure
+    - setup-openstack
+    - sync-inventory
 
-- hosts: ceph_mon
+- hosts:
+    - compute
+    - utility
+    - neutron_server
+    - ceilometer_all
+    - horizon_all
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - ceph-mon
+    - post-osa
 
-- hosts: ceph_osd
+- hosts:
+    - compute
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - ceph-osd
+    - collectd
 
-- hosts: ceph
+- hosts:
+    - controller
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - ceph-openstack
+    - influxdb
+    - grafana
 
-- hosts: all
+- hosts:
+    - neutron_openvswitch_agent
+    - compute
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - monitor
+    - config-dpdk
 
-- hosts: all
+- hosts: neutron_openvswitch_agent
   remote_user: root
-  max_fail_percentage: 0
-  tasks:
-    - name: set bash to nova
-      user:
-        name: nova
-        shell: /bin/bash
-
-    - name: make sure ssh dir exist
-      file:
-        path: '{{ item.path }}'
-        owner: '{{ item.owner }}'
-        group: '{{ item.group }}'
-        state: directory
-        mode: 0755
-      with_items:
-        - path: /var/lib/nova/.ssh
-          owner: nova
-          group: nova
-
-    - name: copy ssh keys for nova
-      shell: cp -rf /root/.ssh/id_rsa /var/lib/nova/.ssh;
-
-    - name: write ssh config
-      copy:
-        content: "UserKnownHostsFile /dev/null\nStrictHostKeyChecking no"
-        dest: '{{ item.dest }}'
-        owner: '{{ item.owner }}'
-        group: '{{ item.group }}'
-        mode: 0600
-      with_items:
-        - dest: /var/lib/nova/.ssh/config
-          owner: nova
-          group: nova
-
-    - authorized_key:
-        user: nova
-        key: "{{ lookup('file', item) }}"
-      with_fileglob:
-        - /tmp/ssh-keys-*
-
-    - name: chown ssh file
-      shell: chown -R nova:nova /var/lib/nova/.ssh;
-
-- hosts: all
-  remote_user: root
-  max_fail_percentage: 0
   roles:
-    - odl_cluster
+    - setup-openvswitch
 
-- hosts: all
+- hosts:
+    - localhost
+    - neutron_all
+    - galera_container
+    - network_hosts
+    - repo_container
+    - utility
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - onos_cluster
+    - setup-odl
+  tags:
+    - odl
 
-- hosts: all
+- hosts:
+    - localhost
+    - neutron_all
+    - galera_container
+    - network_hosts
+    - repo_container
+    - utility
+    - tacker_all
   remote_user: root
-  serial: 1
-  max_fail_percentage: 0
   roles:
-    - odl_cluster_neutron
+    - setup-odl-sfc
+  tags:
+    - odl_sfc
 
-- hosts: all
+- hosts:
+    - utility_all[0]
+    - network_hosts[0]
+    - horizon
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - odl_cluster_post
+    - post-openstack
 
-- hosts: controller
+- hosts: localhost
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - ext-network
+    - process-openrc
 
-- hosts: controller
+- hosts: moon
   remote_user: root
-  max_fail_percentage: 0
   roles:
-    - openstack-post
-
-- hosts: controller
-  remote_user: root
-  max_fail_percentage: 0
-  roles:
-    - boot-recovery
-
-- hosts: controller
-  remote_user: root
-  max_fail_percentage: 0
-  roles:
-    - controller-recovery
-
-- hosts: compute
-  remote_user: root
-  max_fail_percentage: 0
-  roles:
-    - compute-recovery
+    - moon

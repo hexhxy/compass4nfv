@@ -1,0 +1,35 @@
+---
+
+- name: Perform a Neutron DB online upgrade
+  command: |
+    /openstack/venvs/neutron-{{ os_ver }}/bin/neutron-db-manage
+                      --config-file /etc/neutron/neutron.conf
+                      --config-file /etc/neutron/plugins/ml2/ml2_conf.ini
+                      upgrade --expand
+  become: "yes"
+  become_user: "neutron"
+
+- name: Perform a Neutron DB offline upgrade
+  command: |
+    /openstack/venvs/neutron-{{ os_ver }}/bin/neutron-db-manage
+                      --config-file /etc/neutron/neutron.conf
+                      --config-file /etc/neutron/plugins/ml2/ml2_conf.ini
+                      upgrade --contract
+  become: "yes"
+  become_user: "neutron"
+
+- name: SFC DB upgrade
+  command: |
+    /openstack/venvs/neutron-{{ os_ver }}/bin/neutron-db-manage
+                      --subproject networking-sfc
+                      upgrade head
+  become: "yes"
+  become_user: "neutron"
+  when: odl_sfc == "Enable"
+
+- name: fetch ml2_conf.ini to compass-tasks
+  fetch:
+    src: /etc/neutron/plugins/ml2/ml2_conf.ini
+    dest: /tmp/
+    flat: "yes"
+  when: odl_sfc == "Enable"

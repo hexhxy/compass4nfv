@@ -1,8 +1,19 @@
+##############################################################################
+# Copyright (c) 2016 HUAWEI TECHNOLOGIES CO.,LTD and others.
+#
+# All rights reserved. This program and the accompanying materials
+# are made available under the terms of the Apache License, Version 2.0
+# which accompanies this distribution, and is available at
+# http://www.apache.org/licenses/LICENSE-2.0
+##############################################################################
+
 ---
 TYPE: virtual
 FLAVOR: cluster
 
-moon: "Enable"
+plugins:
+  - opendaylight: "Enable"
+  - moon: "Enable"
 
 hosts:
   - name: host1
@@ -34,5 +45,4 @@ hosts:
 
   - name: host5
     roles:
-      - compute
-      - ceph-osd
+      - moon
