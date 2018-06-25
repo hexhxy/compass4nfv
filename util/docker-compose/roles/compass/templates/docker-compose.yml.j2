@@ -55,7 +55,7 @@ services:
     privileged: true
     image: {{ compass_deck }}
     ports:
-    - {{ host_ip }}:{{ deck_port }}:80/tcp
+#    - {{ host_ip }}:{{ deck_port }}:80/tcp
     - {{ external_ip.stdout }}:{{ deck_port }}:80/tcp
     tty: true
     links:
